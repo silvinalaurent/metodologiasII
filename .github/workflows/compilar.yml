@@ -1,0 +1,69 @@
+name: Pruebas Detalladas
+
+on:
+  # Ejecutar después de que el workflow principal complete
+  workflow_run:
+    workflows: ["Compilar y Ejecutar Proyecto Notificaciones"]
+    types:
+      - completed
+    branches: [main, master]
+  
+  # Ejecutar en revisiones de PR
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  analisis:
+    runs-on: ubuntu-latest
+    # Solo ejecutar si el review fue aprobado
+    if: github.event.review.state == 'approved' || github.event_name == 'workflow_run'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Análisis estático de código
+        run: |
+          echo "=== ANÁLISIS DE CÓDIGO ==="
+          
+          # Contar líneas de código
+          echo "Líneas de código Java:"
+          find . -name "*.java" -exec wc -l {} \; | awk '{sum+=$1} END {print "Total: " sum " líneas"}'
+          
+          # Verificar nombres de clases
+          echo -e "\nClases encontradas:"
+          grep -l "public class" *.java 2>/dev/null || echo "No se encontraron clases públicas"
+          
+          # Verificar implementaciones de interfaces
+          echo -e "\nClases que implementan CanalNotificacion:"
+          grep -l "implements CanalNotificacion" *.java 2>/dev/null || echo "Ninguna"
+      
+      - name: Verificar convenciones de nombres
+        run: |
+          echo "=== VERIFICANDO CONVENCIONES ==="
+          error=0
+          for file in *.java; do
+            # Verificar que el nombre del archivo empiece con mayúscula
+            if [[ -f "$file" ]] && [[ ! $file =~ ^[A-Z] ]]; then
+              echo "⚠️  Archivo no sigue convención (debe empezar con mayúscula): $file"
+              error=1
+            fi
+          done
+          
+          if [ $error -eq 0 ]; then
+            echo "✅ Todas las convenciones se cumplen"
+          else
+            echo "❌ Algunas convenciones no se cumplen"
+            exit 1
+          fi
+      
+      - name: Compilar con opciones adicionales
+        run: |
+          echo "Compilando con todas las advertencias..."
+          javac -Xlint:all *.java
+          echo "✅ Compilación con advertencias exitosa"

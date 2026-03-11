@@ -1,131 +1,69 @@
-name: Compilar y Ejecutar Proyecto Notificaciones
+name: Pruebas Detalladas
 
 on:
-  # Se ejecuta cuando haces push a main/master
-  push:
-    branches: [ main, master ]
+  # Ejecutar después de que el workflow principal complete
+  workflow_run:
+    workflows: ["Compilar y Ejecutar Proyecto Notificaciones"]
+    types:
+      - completed
+    branches: [main, master]
   
-  # Se ejecuta cuando creas un Pull Request
-  pull_request:
-    branches: [ main, master ]
-  
-  # Permite ejecutarlo manualmente desde la interfaz de GitHub
-  workflow_dispatch:
-  
-  # Se ejecuta cada vez que hay cambios en archivos .java
-  paths:
-    - '**.java'
+  # Ejecutar en revisiones de PR
+  pull_request_review:
+    types: [submitted]
 
 jobs:
-  compilar:
-    # Usa la última versión de Ubuntu
+  analisis:
     runs-on: ubuntu-latest
-    
-    # Nombre descriptivo del job
-    name: Compilar y Ejecutar Aplicación Java
+    # Solo ejecutar si el review fue aprobado
+    if: github.event.review.state == 'approved' || github.event_name == 'workflow_run'
     
     steps:
-      # Paso 1: Obtener el código del repositorio
-      - name: 📥 Checkout del repositorio
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
-      # Paso 2: Configurar Java
-      - name: ☕ Configurar Java JDK
-        uses: actions/setup-java@v3
+      - name: Configurar Java
+        uses: actions/setup-java@v4
         with:
-          # Puedes cambiar la versión según necesites
-          distribution: 'temurin'  # Eclipse Temurin (recomendado)
-          java-version: '17'       # Versión de Java (11, 17, 21, etc.)
-          cache: 'maven'           # Cache para dependencias (si las hubiera)
+          distribution: 'temurin'
+          java-version: '17'
       
-      # Paso 3: Verificar la versión de Java
-      - name: ℹ️ Verificar instalación de Java
+      - name: Análisis estático de código
         run: |
-          java -version
-          javac -version
-          echo "✅ Java configurado correctamente"
-      
-      # Paso 4: Listar archivos para verificar
-      - name: 📋 Listar archivos del proyecto
-        run: |
-          echo "Estructura del proyecto:"
-          ls -la
-          echo "\nArchivos Java encontrados:"
-          find . -name "*.java"
-      
-      # Paso 5: Compilar todos los archivos Java
-      - name: 🔨 Compilar el proyecto
-        run: |
-          echo "Compilando archivos Java..."
-          javac *.java
+          echo "=== ANÁLISIS DE CÓDIGO ==="
           
-          # Verificar si la compilación fue exitosa
-          if [ $? -eq 0 ]; then
-            echo "✅ Compilación exitosa!"
+          # Contar líneas de código
+          echo "Líneas de código Java:"
+          find . -name "*.java" -exec wc -l {} \; | awk '{sum+=$1} END {print "Total: " sum " líneas"}'
+          
+          # Verificar nombres de clases
+          echo -e "\nClases encontradas:"
+          grep -l "public class" *.java 2>/dev/null || echo "No se encontraron clases públicas"
+          
+          # Verificar implementaciones de interfaces
+          echo -e "\nClases que implementan CanalNotificacion:"
+          grep -l "implements CanalNotificacion" *.java 2>/dev/null || echo "Ninguna"
+      
+      - name: Verificar convenciones de nombres
+        run: |
+          echo "=== VERIFICANDO CONVENCIONES ==="
+          error=0
+          for file in *.java; do
+            # Verificar que el nombre del archivo empiece con mayúscula
+            if [[ -f "$file" ]] && [[ ! $file =~ ^[A-Z] ]]; then
+              echo "⚠️  Archivo no sigue convención (debe empezar con mayúscula): $file"
+              error=1
+            fi
+          done
+          
+          if [ $error -eq 0 ]; then
+            echo "✅ Todas las convenciones se cumplen"
           else
-            echo "❌ Error en la compilación"
+            echo "❌ Algunas convenciones no se cumplen"
             exit 1
           fi
       
-      # Paso 6: Mostrar archivos .class generados
-      - name: 📦 Mostrar archivos compilados
+      - name: Compilar con opciones adicionales
         run: |
-          echo "Archivos .class generados:"
-          ls -la *.class
-      
-      # Paso 7: Ejecutar la aplicación
-      - name: 🚀 Ejecutar la aplicación
-        run: |
-          echo "Ejecutando aplicación..."
-          echo "========================"
-          java Main
-          echo "========================"
-          echo "✅ Ejecución completada!"
-      
-      # Paso 8: Guardar los archivos compilados como artefacto
-      - name: 💾 Guardar artefactos
-        uses: actions/upload-artifact@v3
-        with:
-          name: clases-compiladas
-          path: |
-            *.class
-            *.java
-          retention-days: 7  # Guardar por 7 días
-      
-      # Paso 9: Ejecutar pruebas adicionales (opcional)
-      - name: 🧪 Verificar salida
-        run: |
-          echo "Verificando que la ejecución produjo resultados..."
-          # Aquí podrías agregar validaciones específicas
-          echo "✅ Todo correcto!"
-
-  # Job adicional para pruebas en diferentes versiones de Java
-  pruebas-multiples-versiones:
-    runs-on: ubuntu-latest
-    needs: compilar  # Espera a que el primer job termine
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    strategy:
-      matrix:
-        java: [11, 17, 21]  # Probar en múltiples versiones
-    
-    name: Pruebas con Java ${{ matrix.java }}
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Configurar Java ${{ matrix.java }}
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: ${{ matrix.java }}
-      
-      - name: Compilar con Java ${{ matrix.java }}
-        run: |
-          echo "Compilando con Java ${{ matrix.java }}..."
-          javac *.java
-          echo "✅ Compilación exitosa con Java ${{ matrix.java }}"
-      
-      - name: Ejecutar con Java ${{ matrix.java }}
-        run: |
-          echo "Ejecutando con Java ${{ matrix.java }}..."
-          java Main
+          echo "Compilando con todas las advertencias..."
+          javac -Xlint:all *.java
+          echo "✅ Compilación con advertencias exitosa"

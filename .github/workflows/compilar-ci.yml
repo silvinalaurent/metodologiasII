@@ -1,0 +1,37 @@
+name: Java Manual Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Traer el código del repo
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # 2. Instalar el JDK sin buscar archivos de configuración (Maven/Gradle)
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        # IMPORTANTE: Eliminamos la línea de 'cache: maven' para evitar el error
+
+    # 3. Compilar manualmente
+    - name: Compile Java
+      run: |
+        mkdir -p out
+        javac -d out $(find . -name "*.java")
+
+    # 4. Ejecutar (Opcional, solo para verificar que funciona)
+    - name: Run App
+      run: |
+        # Cambia 'Main' por el nombre de tu clase principal (con su paquete si tiene)
+        java -cp out Main

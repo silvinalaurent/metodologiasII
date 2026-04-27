@@ -1,12 +1,13 @@
 package com.ejemplo.biblioteca.repositorio;
 
-import com.ejemplo.biblioteca.modelo.Libro;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import com.ejemplo.biblioteca.modelo.Libro;
 
 /**
  * Implementación en memoria del repositorio de libros.
@@ -29,6 +30,7 @@ public class LibroRepositorioEnMemoria implements LibroRepositorio {
         almacenamiento.put(libro.getIsbn(), libro);
     }
 
+    
     @Override
     public Optional<Libro> buscarPorIsbn(String isbn) {
         return Optional.ofNullable(almacenamiento.get(isbn));
